@@ -10,15 +10,20 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("garmin_rehab_token");
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      // TODO: add JWT token from auth state
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...options,
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem("garmin_rehab_token");
+      window.location.href = "/login";
+    }
     throw new ApiError(res.status, await res.text());
   }
 

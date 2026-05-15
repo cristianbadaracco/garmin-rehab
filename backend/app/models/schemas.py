@@ -167,7 +167,49 @@ class AIInsightResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ─── Auth ────────────────────────────────────────────────────────────────────
+
+class UserRegister(BaseModel):
+    email: str = Field(max_length=255)
+    password: str = Field(min_length=8)
+    name: str = Field(max_length=100)
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    name: str
+    created_at: datetime
+    has_garmin: bool
+
+    model_config = {"from_attributes": True}
+
+
 # ─── Dashboard Summary ────────────────────────────────────────────────────────
+
+
+class RecoveryProgress(BaseModel):
+    """Progreso de recuperación de la lesión activa."""
+
+    injury_id: uuid.UUID
+    injury_name: str
+    current_phase: str
+    days_since_surgery: int
+    estimated_recovery_months: int
+    progress_percentage: float
+    pain_trend: str
+    avg_pain_last_7_days: float
+    avg_pain_previous_7_days: float
 
 
 class DashboardSummary(BaseModel):
@@ -180,17 +222,3 @@ class DashboardSummary(BaseModel):
     recent_pain_logs: list[PainLogResponse]
     recent_insights: list[AIInsightResponse]
     recovery_progress: RecoveryProgress | None = None
-
-
-class RecoveryProgress(BaseModel):
-    """Progreso de recuperación de la lesión activa."""
-
-    injury_id: uuid.UUID
-    injury_name: str
-    current_phase: str
-    days_since_surgery: int
-    estimated_recovery_months: int
-    progress_percentage: float
-    pain_trend: str  # improving, stable, worsening
-    avg_pain_last_7_days: float
-    avg_pain_previous_7_days: float

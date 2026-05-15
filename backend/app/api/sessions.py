@@ -1,4 +1,3 @@
-import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
@@ -6,19 +5,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.deps import get_current_user
 from app.db.database import get_db
-from app.models.models import Session, SessionBlock
+from app.models.models import Session, SessionBlock, User
 from app.models.schemas import SessionCreate, SessionResponse
 
 router = APIRouter()
 
 
 @router.post("/", response_model=SessionResponse)
-async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)):
+async def create_session(
+    data: SessionCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Register a training session with blocks."""
     session = Session(
-        # TODO: get user_id from JWT
-        user_id=uuid.uuid4(),
+        user_id=user.id,
         date=date.today(),
         session_type=data.session_type,
         title=data.title,
@@ -42,7 +45,6 @@ async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)
     await db.flush()
     await db.refresh(session)
 
-    # Reload with blocks
     result = await db.execute(
         select(Session).where(Session.id == session.id).options(selectinload(Session.blocks))
     )
@@ -53,12 +55,17 @@ async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)
 async def get_sessions(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get sessions for a date range."""
     result = await db.execute(
         select(Session)
-        .where(Session.date >= start_date, Session.date <= end_date)
+        .where(
+            Session.user_id == user.id,
+            Session.date >= start_date,
+            Session.date <= end_date,
+        )
         .options(selectinload(Session.blocks))
         .order_by(Session.date.desc())
     )

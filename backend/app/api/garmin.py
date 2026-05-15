@@ -1,6 +1,7 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,8 +9,35 @@ from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.models.models import Activity, DailyMetrics, User
 from app.models.schemas import ActivityResponse, DailyMetricsResponse
+from app.services.garmin_client import GarminClient
 
 router = APIRouter()
+
+
+class GarminConnectRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/connect")
+async def connect_garmin(
+    data: GarminConnectRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Conectar cuenta de Garmin Connect por primera vez.
+    Guarda tokens y hace backfill de 30 días."""
+    client = GarminClient(user, db)
+    try:
+        await client.connect_account(data.email, data.password)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al conectar con Garmin: {e}",
+        )
+
+    summary = await client.backfill(days=30)
+    return {"status": "connected", **summary}
 
 
 @router.post("/sync")
@@ -17,8 +45,31 @@ async def trigger_sync(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger manual Garmin data sync."""
-    return {"status": "sync_triggered"}
+    """Sync manual: descarga métricas de hoy y actividades recientes."""
+    if not user.garmin_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cuenta Garmin no conectada. Usar POST /api/garmin/connect primero.",
+        )
+
+    client = GarminClient(user, db)
+    try:
+        await client.login()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Error de autenticación con Garmin: {e}",
+        )
+
+    today = date.today()
+    await client.sync_daily_metrics(today)
+    new_activities = await client.sync_activities(start=0, limit=10)
+
+    return {
+        "status": "synced",
+        "date": today.isoformat(),
+        "new_activities": len(new_activities),
+    }
 
 
 @router.get("/metrics", response_model=list[DailyMetricsResponse])
@@ -28,7 +79,7 @@ async def get_metrics(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get daily health metrics for a date range."""
+    """Obtener métricas diarias en un rango de fechas."""
     result = await db.execute(
         select(DailyMetrics)
         .where(
@@ -48,7 +99,7 @@ async def get_activities(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get tracked activities for a date range."""
+    """Obtener actividades trackeadas en un rango de fechas."""
     result = await db.execute(
         select(Activity)
         .where(

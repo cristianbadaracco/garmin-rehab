@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0b0e14;
+  color: #e8ecf4;
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #12161f;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3147;
+  border-radius: 3px;
+}

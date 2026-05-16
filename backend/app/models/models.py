@@ -42,6 +42,7 @@ class User(Base):
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
     pain_logs: Mapped[list["PainLog"]] = relationship(back_populates="user")
     insights: Mapped[list["AIInsight"]] = relationship(back_populates="user")
+    sync_jobs: Mapped[list["SyncJob"]] = relationship(back_populates="user")
 
 
 # ─── Medical Profile ─────────────────────────────────────────────────────────
@@ -243,3 +244,23 @@ class AIInsight(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="insights")
+
+
+# ─── Sync Jobs ───────────────────────────────────────────────────────────────
+
+
+class SyncJob(Base):
+    __tablename__ = "sync_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    total_days: Mapped[int] = mapped_column(Integer)
+    days_synced: Mapped[int] = mapped_column(Integer, default=0)
+    days_skipped: Mapped[int] = mapped_column(Integer, default=0)
+    new_activities: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="sync_jobs")

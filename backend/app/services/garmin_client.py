@@ -1,5 +1,6 @@
 """Cliente de Garmin Connect. Descarga métricas diarias y actividades."""
 
+import asyncio
 import logging
 from datetime import date, timedelta
 
@@ -48,6 +49,36 @@ class GarminClient:
             pass
         await self.db.flush()
 
+    def _fetch_day_data_sync(self, date_str: str) -> dict:
+        """Fetch todas las métricas del día en paralelo desde threads.
+        Todos los callos son GET independientes — seguro concurrentemente."""
+        def safe(fn, *args, default=None):
+            """Ejecutar con retry en caso de rate limit (429)."""
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    result = fn(*args)
+                    return result if result is not None else default
+                except Exception as e:
+                    error_str = str(e)
+                    if "429" in error_str or "too many" in error_str.lower():
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(2 ** attempt)
+                            continue
+                    return default
+
+        return {
+            "heart_rates": safe(self.client.get_heart_rates, date_str, default={}),
+            "hrv": safe(self.client.get_hrv_data, date_str, default={}),
+            "sleep": safe(self.client.get_sleep_data, date_str, default={}),
+            "stress": safe(self.client.get_stress_data, date_str, default={}),
+            "body_battery": safe(self.client.get_body_battery, date_str, default=[]),
+            "stats": safe(self.client.get_stats, date_str, default={}),
+            "training_readiness": safe(self.client.get_training_readiness, date_str),
+            "max_metrics": safe(self.client.get_max_metrics, date_str),
+        }
+
     async def sync_daily_metrics(self, target_date: date) -> DailyMetrics | None:
         """Descargar métricas de un día y hacer upsert en DB.
         Retorna el registro creado/actualizado o None si no hay datos."""
@@ -56,35 +87,14 @@ class GarminClient:
 
         date_str = target_date.isoformat()
 
-        try:
-            heart_rates = self.client.get_heart_rates(date_str)
-        except Exception:
-            heart_rates = {}
-
-        try:
-            hrv = self.client.get_hrv_data(date_str)
-        except Exception:
-            hrv = {}
-
-        try:
-            sleep = self.client.get_sleep_data(date_str)
-        except Exception:
-            sleep = {}
-
-        try:
-            stress = self.client.get_stress_data(date_str)
-        except Exception:
-            stress = {}
-
-        try:
-            body_battery = self.client.get_body_battery(date_str)
-        except Exception:
-            body_battery = []
-
-        try:
-            stats = self.client.get_stats(date_str)
-        except Exception:
-            stats = {}
+        # Correr las 8 llamadas HTTP en paralelo en el thread pool
+        data = await asyncio.to_thread(self._fetch_day_data_sync, date_str)
+        heart_rates = data["heart_rates"]
+        hrv = data["hrv"]
+        sleep = data["sleep"]
+        stress = data["stress"]
+        body_battery = data["body_battery"]
+        stats = data["stats"]
 
         resting_hr = heart_rates.get("restingHeartRate") if isinstance(heart_rates, dict) else None
         avg_hr = resting_hr
@@ -126,7 +136,7 @@ class GarminClient:
             item = body_battery[0]
             if isinstance(item, dict):
                 bb_values = item.get("bodyBatteryValuesArray", [])
-                levels = [v[1] for v in bb_values if isinstance(v, list) and len(v) >= 2]
+                levels = [v[1] for v in bb_values if isinstance(v, list) and len(v) >= 2 and v[1] is not None]
                 if levels:
                     body_battery_morning = max(levels)
                     body_battery_end = levels[-1]
@@ -135,22 +145,16 @@ class GarminClient:
         active_calories = stats.get("activeKilocalories") if isinstance(stats, dict) else None
 
         training_readiness = None
-        try:
-            tr_data = self.client.get_training_readiness(date_str)
-            if isinstance(tr_data, dict):
-                training_readiness = tr_data.get("score")
-        except Exception:
-            pass
+        tr_data = data["training_readiness"]
+        if isinstance(tr_data, dict):
+            training_readiness = tr_data.get("score")
 
         vo2_max = None
-        try:
-            max_metrics = self.client.get_max_metrics(date_str)
-            if isinstance(max_metrics, dict):
-                generic = max_metrics.get("generic", {})
-                if isinstance(generic, dict):
-                    vo2_max = generic.get("vo2MaxValue")
-        except Exception:
-            pass
+        max_metrics = data["max_metrics"]
+        if isinstance(max_metrics, dict):
+            generic = max_metrics.get("generic", {})
+            if isinstance(generic, dict):
+                vo2_max = generic.get("vo2MaxValue")
 
         result = await self.db.execute(
             select(DailyMetrics).where(
@@ -193,7 +197,7 @@ class GarminClient:
         await self.db.refresh(metrics)
         return metrics
 
-    async def sync_activities(self, start: int = 0, limit: int = 20) -> list[Activity]:
+    async def sync_activities(self, start: int = 0, limit: int = 20, fetch_details: bool = True) -> list[Activity]:
         """Descargar actividades recientes y guardar las nuevas (dedup por garmin_activity_id).
         Retorna lista de actividades nuevas insertadas."""
         if not self.client:
@@ -229,17 +233,18 @@ class GarminClient:
             ground_contact_balance = None
             stride_length = None
             vertical_oscillation = None
-            try:
-                detail = self.client.get_activity(raw["activityId"])
-                if isinstance(detail, dict):
-                    summary = detail.get("summaryDTO", {})
-                    if isinstance(summary, dict):
-                        ground_contact_time = summary.get("groundContactTime")
-                        ground_contact_balance = summary.get("groundContactBalanceLeft")
-                        stride_length = summary.get("strideLength")
-                        vertical_oscillation = summary.get("verticalOscillation")
-            except Exception:
-                pass
+            if fetch_details:
+                try:
+                    detail = self.client.get_activity(raw["activityId"])
+                    if isinstance(detail, dict):
+                        summary = detail.get("summaryDTO", {})
+                        if isinstance(summary, dict):
+                            ground_contact_time = summary.get("groundContactTime")
+                            ground_contact_balance = summary.get("groundContactBalanceLeft")
+                            stride_length = summary.get("strideLength")
+                            vertical_oscillation = summary.get("verticalOscillation")
+                except Exception:
+                    pass
 
             activity = Activity(
                 user_id=self.user.id,
@@ -270,19 +275,40 @@ class GarminClient:
         """Descargar datos históricos de los últimos N días.
         Retorna resumen de lo sincronizado."""
         today = date.today()
-        metrics_count = 0
-        for i in range(days):
-            target = today - timedelta(days=i)
-            try:
-                result = await self.sync_daily_metrics(target)
-                if result:
-                    metrics_count += 1
-            except Exception as e:
-                logger.warning(f"Error syncing metrics for {target}: {e}")
 
-        new_activities = await self.sync_activities(start=0, limit=100)
+        start_date = today - timedelta(days=days - 1)
+        result = await self.db.execute(
+            select(DailyMetrics.date).where(
+                DailyMetrics.user_id == self.user.id,
+                DailyMetrics.date >= start_date,
+                DailyMetrics.date <= today,
+            )
+        )
+        existing_dates: set[date] = {row[0] for row in result.all()}
+
+        dates_to_sync = [
+            today - timedelta(days=i)
+            for i in range(days)
+            if (today - timedelta(days=i)) not in existing_dates
+        ]
+
+        sem = asyncio.Semaphore(5)
+
+        async def _sync_one_day(target_date: date) -> DailyMetrics | None:
+            async with sem:
+                try:
+                    return await self.sync_daily_metrics(target_date)
+                except Exception as e:
+                    logger.warning(f"Error syncing metrics for {target_date}: {e}")
+                    return None
+
+        results = await asyncio.gather(*[_sync_one_day(d) for d in dates_to_sync])
+        metrics_count = sum(1 for r in results if r is not None)
+
+        new_activities = await self.sync_activities(start=0, limit=100, fetch_details=False)
 
         return {
             "metrics_synced": metrics_count,
+            "days_skipped": len(existing_dates),
             "new_activities": len(new_activities),
         }

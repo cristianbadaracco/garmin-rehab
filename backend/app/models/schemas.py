@@ -223,3 +223,26 @@ class DashboardSummary(BaseModel):
     recent_pain_logs: list[PainLogResponse]
     recent_insights: list[AIInsightResponse]
     recovery_progress: RecoveryProgress | None = None
+
+
+# ─── Sync Jobs ───────────────────────────────────────────────────────────────
+
+
+class SyncJobResponse(BaseModel):
+    id: uuid.UUID
+    status: str
+    total_days: int
+    days_synced: int
+    days_skipped: int
+    new_activities: int
+    error_message: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class BackfillStartResponse(BaseModel):
+    job_id: uuid.UUID
+    status: str
+    message: str

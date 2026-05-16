@@ -206,15 +206,19 @@ class GarminClient:
         raw_activities = self.client.get_activities(start, limit)
         new_activities: list[Activity] = []
 
+        garmin_ids = [str(raw.get("activityId", "")) for raw in raw_activities]
+        garmin_ids = [gid for gid in garmin_ids if gid]
+
+        existing_result = await self.db.execute(
+            select(Activity.garmin_activity_id).where(
+                Activity.garmin_activity_id.in_(garmin_ids)
+            )
+        )
+        existing_ids: set[str] = {row[0] for row in existing_result.all()}
+
         for raw in raw_activities:
             garmin_id = str(raw.get("activityId", ""))
-            if not garmin_id:
-                continue
-
-            existing = await self.db.execute(
-                select(Activity).where(Activity.garmin_activity_id == garmin_id)
-            )
-            if existing.scalar_one_or_none():
+            if not garmin_id or garmin_id in existing_ids:
                 continue
 
             activity_date_str = raw.get("startTimeLocal", "")[:10]

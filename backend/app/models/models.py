@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -97,9 +98,12 @@ class DailyMetrics(Base):
     """Métricas diarias de salud del Garmin (1 registro por día)."""
 
     __tablename__ = "daily_metrics"
+    __table_args__ = (
+        Index("ix_daily_metrics_user_date", "user_id", "date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     date: Mapped[date] = mapped_column(Date, index=True)
 
     # Heart rate
@@ -143,9 +147,12 @@ class Activity(Base):
     """Actividad trackeada por el Garmin (carrera, caminata, etc.)."""
 
     __tablename__ = "activities"
+    __table_args__ = (
+        Index("ix_activities_user_date", "user_id", "date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     garmin_activity_id: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
     date: Mapped[date] = mapped_column(Date, index=True)
 

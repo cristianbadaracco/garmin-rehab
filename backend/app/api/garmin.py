@@ -4,6 +4,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.orm import load_only
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -110,7 +111,7 @@ async def trigger_sync(
 
     today = date.today()
     await client.sync_daily_metrics(today)
-    new_activities = await client.sync_activities(start=0, limit=10)
+    new_activities = await client.sync_activities(start=0, limit=10, fetch_details=False)
 
     return {
         "status": "synced",
@@ -183,18 +184,45 @@ async def get_backfill_status(
 async def get_metrics(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    limit: int = Query(default=90, ge=1, le=365),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Obtener métricas diarias en un rango de fechas."""
     result = await db.execute(
         select(DailyMetrics)
+        .options(
+            load_only(
+                DailyMetrics.id,
+                DailyMetrics.date,
+                DailyMetrics.resting_hr,
+                DailyMetrics.max_hr,
+                DailyMetrics.avg_hr,
+                DailyMetrics.hrv_weekly_avg,
+                DailyMetrics.hrv_last_night,
+                DailyMetrics.sleep_score,
+                DailyMetrics.sleep_hours,
+                DailyMetrics.deep_sleep_hours,
+                DailyMetrics.light_sleep_hours,
+                DailyMetrics.rem_sleep_hours,
+                DailyMetrics.avg_stress,
+                DailyMetrics.body_battery_morning,
+                DailyMetrics.body_battery_end,
+                DailyMetrics.training_readiness,
+                DailyMetrics.vo2_max,
+                DailyMetrics.steps,
+                DailyMetrics.active_calories,
+            )
+        )
         .where(
             DailyMetrics.user_id == user.id,
             DailyMetrics.date >= start_date,
             DailyMetrics.date <= end_date,
         )
         .order_by(DailyMetrics.date)
+        .limit(limit)
+        .offset(offset)
     )
     return result.scalars().all()
 
@@ -203,17 +231,42 @@ async def get_metrics(
 async def get_activities(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Obtener actividades trackeadas en un rango de fechas."""
     result = await db.execute(
         select(Activity)
+        .options(
+            load_only(
+                Activity.id,
+                Activity.garmin_activity_id,
+                Activity.date,
+                Activity.activity_type,
+                Activity.name,
+                Activity.duration_seconds,
+                Activity.distance_meters,
+                Activity.avg_hr,
+                Activity.max_hr,
+                Activity.calories,
+                Activity.avg_pace,
+                Activity.cadence,
+                Activity.ground_contact_time,
+                Activity.ground_contact_balance,
+                Activity.stride_length,
+                Activity.vertical_oscillation,
+                Activity.created_at,
+            )
+        )
         .where(
             Activity.user_id == user.id,
             Activity.date >= start_date,
             Activity.date <= end_date,
         )
         .order_by(Activity.date.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return result.scalars().all()

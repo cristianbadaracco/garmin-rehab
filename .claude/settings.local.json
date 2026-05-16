@@ -5,7 +5,9 @@
       "Bash(ls:*)",
       "Bash(curl:*)",
       "Bash(docker exec db455f66ba20:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

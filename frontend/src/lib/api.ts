@@ -44,10 +44,21 @@ export const api = {
   // Garmin
   garmin: {
     sync: () => request<{ status: string }>("/garmin/sync", { method: "POST" }),
+    backfill: (days: number) =>
+      request<{ job_id: string; total: number; status: string }>(
+        "/garmin/backfill",
+        { method: "POST", body: JSON.stringify({ days }) },
+      ),
+    backfillStatus: (jobId: string) =>
+      request<{ job_id: string; done: number; total: number; pct: number; status: string; error: string | null }>(
+        `/garmin/backfill/${jobId}`,
+      ),
     getMetrics: (startDate: string, endDate: string) =>
       request<DailyMetrics[]>(`/garmin/metrics?start_date=${startDate}&end_date=${endDate}`),
-    getActivities: (startDate: string, endDate: string) =>
-      request<Activity[]>(`/garmin/activities?start_date=${startDate}&end_date=${endDate}`),
+    getActivities: (startDate: string, endDate: string, limit = 10, offset = 0) =>
+      request<Activity[]>(
+        `/garmin/activities?start_date=${startDate}&end_date=${endDate}&limit=${limit}&offset=${offset}`,
+      ),
   },
 
   // Medical

@@ -40,13 +40,7 @@ function AppContent() {
     <div className="min-h-screen bg-bg-primary">
       <Navbar />
       <main className="mx-auto max-w-7xl px-6 py-8">
-        <Suspense
-          fallback={
-            <div className="flex h-48 items-center justify-center">
-              <p className="text-gray-400">Cargando...</p>
-            </div>
-          }
-        >
+        <Suspense fallback={<div className="h-48" />}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/medical" element={<MedicalProfile />} />

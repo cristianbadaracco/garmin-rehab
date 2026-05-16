@@ -63,23 +63,6 @@ function ActivityListSkeleton() {
 export function DashboardSkeleton() {
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <Shimmer className="h-7 w-32" />
-          <Shimmer className="mt-2 h-4 w-56" />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-lg border border-border-subtle">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Shimmer key={i} className="m-1.5 h-5 w-8" />
-            ))}
-          </div>
-          <Shimmer className="h-8 w-24 rounded-lg" />
-          <Shimmer className="h-8 w-24 rounded-lg" />
-        </div>
-      </div>
-
       <MetricCardsSkeleton />
       <ChartsGridSkeleton />
       <div className="mt-6">

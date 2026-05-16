@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 72
 
-    model_config = {"env_file": "../.env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": "../.env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

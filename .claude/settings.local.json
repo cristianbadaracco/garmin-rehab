@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(wc:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(docker exec db455f66ba20:*)",
+      "Bash(uv run:*)"
     ]
   }
 }

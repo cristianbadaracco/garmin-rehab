@@ -23,21 +23,29 @@ class GarminClient:
     async def login(self) -> None:
         """Autenticar con Garmin Connect usando tokens guardados o credenciales."""
         if self.user.garmin_tokens:
+            token_str = self.user.garmin_tokens.get("token_data")
             self.client = Garmin()
-            self.client.login(self.user.garmin_tokens)
+            self.client.login(token_str)
         else:
             raise ValueError(
                 "No hay tokens de Garmin guardados. "
                 "El usuario debe conectar su cuenta primero."
             )
-        self.user.garmin_tokens = self.client.session_data
+        self.user.garmin_tokens = {"token_data": self.client.client.dumps()}
         await self.db.flush()
 
     async def connect_account(self, email: str, password: str) -> None:
         """Primera conexión: login con credenciales y guardar tokens."""
         self.client = Garmin(email, password)
         self.client.login()
-        self.user.garmin_tokens = self.client.session_data
+        self.user.garmin_tokens = {"token_data": self.client.client.dumps()}
+        try:
+            devices = self.client.get_devices()
+            primary = next((d for d in devices if d.get("primary")), devices[0] if devices else None)
+            if primary:
+                self.user.garmin_device_model = primary.get("productDisplayName")
+        except Exception:
+            pass
         await self.db.flush()
 
     async def sync_daily_metrics(self, target_date: date) -> DailyMetrics | None:
@@ -78,16 +86,8 @@ class GarminClient:
         except Exception:
             stats = {}
 
-        try:
-            resting_hr_data = self.client.get_resting_heart_rate(date_str)
-        except Exception:
-            resting_hr_data = {}
-
-        resting_hr = None
-        if isinstance(resting_hr_data, dict):
-            resting_hr = resting_hr_data.get("restingHeartRate")
-
-        avg_hr = heart_rates.get("restingHeartRate") if isinstance(heart_rates, dict) else None
+        resting_hr = heart_rates.get("restingHeartRate") if isinstance(heart_rates, dict) else None
+        avg_hr = resting_hr
         max_hr = heart_rates.get("maxHeartRate") if isinstance(heart_rates, dict) else None
 
         hrv_weekly_avg = None
@@ -96,7 +96,7 @@ class GarminClient:
             hrv_summary = hrv.get("hrvSummary", {})
             if isinstance(hrv_summary, dict):
                 hrv_weekly_avg = hrv_summary.get("weeklyAvg")
-                hrv_last_night = hrv_summary.get("lastNight")
+                hrv_last_night = hrv_summary.get("lastNightAvg")
 
         sleep_score = None
         sleep_hours = None
@@ -118,13 +118,18 @@ class GarminClient:
 
         avg_stress = None
         if isinstance(stress, dict):
-            avg_stress = stress.get("overallStressLevel")
+            avg_stress = stress.get("avgStressLevel")
 
         body_battery_morning = None
         body_battery_end = None
         if isinstance(body_battery, list) and len(body_battery) > 0:
-            body_battery_morning = body_battery[0].get("charged") if isinstance(body_battery[0], dict) else None
-            body_battery_end = body_battery[-1].get("charged") if isinstance(body_battery[-1], dict) else None
+            item = body_battery[0]
+            if isinstance(item, dict):
+                bb_values = item.get("bodyBatteryValuesArray", [])
+                levels = [v[1] for v in bb_values if isinstance(v, list) and len(v) >= 2]
+                if levels:
+                    body_battery_morning = max(levels)
+                    body_battery_end = levels[-1]
 
         steps = stats.get("totalSteps") if isinstance(stats, dict) else None
         active_calories = stats.get("activeKilocalories") if isinstance(stats, dict) else None

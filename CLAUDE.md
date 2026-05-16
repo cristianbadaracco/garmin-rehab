@@ -62,8 +62,30 @@ Auth uses JWT (python-jose) + bcrypt. Routes currently have hardcoded UUIDs with
 
 - **`App.tsx`** — React Router v7, 4 routes: `/` Dashboard, `/medical` MedicalProfile, `/sessions` Sessions, `/progress` Progress
 - **`lib/api.ts`** — HTTP client wrapper hitting `/api/*`
-- **`pages/`** — All 4 pages are empty skeletons
-- Types generated from OpenAPI into `src/types/api.ts` via `make generate-types`
+- **`lib/auth.tsx`** — Auth context + `useAuth()` hook, JWT stored in localStorage
+- **`types/index.ts`** — Global TypeScript interfaces (`DailyMetrics`, `Activity`, `Injury`, `PainLog`)
+- **`components/`** — Reusable components shared across pages (e.g. `Card`)
+- **`pages/`** — One folder per page
+
+### Frontend Conventions
+
+**Page structure** — each page lives in its own folder:
+```
+pages/
+  PageName/
+    index.tsx           ← page component (entry point)
+    utils.ts            ← page-specific helpers/formatters (if needed)
+    components/
+      ComponentA.tsx    ← components used only within this page
+```
+
+**Component placement rules:**
+- Used in only one page → `pages/PageName/components/`
+- Used in multiple pages → `src/components/`
+
+**Size limit:** No component file over 250 lines. If it exceeds that, split into sub-components, extract logic to utils, or separate concerns.
+
+**Types:** All shared interfaces go in `src/types/index.ts`. Page-specific types can be defined inline in the component file.
 
 ### Database
 

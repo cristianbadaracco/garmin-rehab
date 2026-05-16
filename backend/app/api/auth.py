@@ -72,4 +72,5 @@ async def get_me(user: User = Depends(get_current_user)):
         name=user.name,
         created_at=user.created_at,
         has_garmin=user.garmin_tokens is not None,
+        garmin_device_model=user.garmin_device_model,
     )

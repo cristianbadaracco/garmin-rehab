@@ -1,3 +1,13 @@
+import type {
+  Activity,
+  AIInsight,
+  DailyMetrics,
+  Injury,
+  PainLog,
+  RecoveryProgress,
+  Session,
+} from "../types/index";
+
 const API_BASE = "/api";
 
 class ApiError extends Error {
@@ -35,45 +45,45 @@ export const api = {
   garmin: {
     sync: () => request<{ status: string }>("/garmin/sync", { method: "POST" }),
     getMetrics: (startDate: string, endDate: string) =>
-      request<unknown[]>(`/garmin/metrics?start_date=${startDate}&end_date=${endDate}`),
+      request<DailyMetrics[]>(`/garmin/metrics?start_date=${startDate}&end_date=${endDate}`),
     getActivities: (startDate: string, endDate: string) =>
-      request<unknown[]>(`/garmin/activities?start_date=${startDate}&end_date=${endDate}`),
+      request<Activity[]>(`/garmin/activities?start_date=${startDate}&end_date=${endDate}`),
   },
 
   // Medical
   medical: {
     createInjury: (data: unknown) =>
-      request<unknown>("/medical/injuries", { method: "POST", body: JSON.stringify(data) }),
+      request<Injury>("/medical/injuries", { method: "POST", body: JSON.stringify(data) }),
     getInjuries: (activeOnly = true) =>
-      request<unknown[]>(`/medical/injuries?active_only=${activeOnly}`),
+      request<Injury[]>(`/medical/injuries?active_only=${activeOnly}`),
     updatePhase: (injuryId: string, data: unknown) =>
-      request<unknown>(`/medical/injuries/${injuryId}/phase`, {
+      request<Injury>(`/medical/injuries/${injuryId}/phase`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
     createPainLog: (data: unknown) =>
-      request<unknown>("/medical/pain-logs", { method: "POST", body: JSON.stringify(data) }),
+      request<PainLog>("/medical/pain-logs", { method: "POST", body: JSON.stringify(data) }),
     getPainLogs: (startDate: string, endDate: string, injuryId?: string) => {
       let url = `/medical/pain-logs?start_date=${startDate}&end_date=${endDate}`;
       if (injuryId) url += `&injury_id=${injuryId}`;
-      return request<unknown[]>(url);
+      return request<PainLog[]>(url);
     },
   },
 
   // Sessions
   sessions: {
     create: (data: unknown) =>
-      request<unknown>("/sessions/", { method: "POST", body: JSON.stringify(data) }),
+      request<Session>("/sessions/", { method: "POST", body: JSON.stringify(data) }),
     list: (startDate: string, endDate: string) =>
-      request<unknown[]>(`/sessions/?start_date=${startDate}&end_date=${endDate}`),
+      request<Session[]>(`/sessions/?start_date=${startDate}&end_date=${endDate}`),
   },
 
   // Analysis
   analysis: {
     getInsights: (startDate: string, endDate: string) =>
-      request<unknown[]>(`/analysis/insights?start_date=${startDate}&end_date=${endDate}`),
+      request<AIInsight[]>(`/analysis/insights?start_date=${startDate}&end_date=${endDate}`),
     generateDaily: () =>
       request<{ status: string }>("/analysis/generate-daily", { method: "POST" }),
-    getRecoveryProgress: () => request<unknown>("/analysis/recovery-progress"),
+    getRecoveryProgress: () => request<RecoveryProgress>("/analysis/recovery-progress"),
   },
 };

@@ -191,6 +191,7 @@ class UserResponse(BaseModel):
     name: str
     created_at: datetime
     has_garmin: bool
+    garmin_device_model: str | None
 
     model_config = {"from_attributes": True}
 

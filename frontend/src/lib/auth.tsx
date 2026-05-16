@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
   created_at: string;
   has_garmin: boolean;
+  garmin_device_model: string | null;
 }
 
 interface AuthState {
@@ -25,8 +26,8 @@ const API_BASE = "/api";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem(TOKEN_KEY),
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem(TOKEN_KEY),
   );
   const [isLoading, setIsLoading] = useState(true);
 

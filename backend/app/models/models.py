@@ -34,6 +34,7 @@ class User(Base):
 
     # Garmin auth tokens stored encrypted
     garmin_tokens: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    garmin_device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     injuries: Mapped[list["Injury"]] = relationship(back_populates="user")
     daily_metrics: Mapped[list["DailyMetrics"]] = relationship(back_populates="user")
